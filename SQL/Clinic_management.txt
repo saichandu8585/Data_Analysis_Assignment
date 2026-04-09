@@ -1,0 +1,70 @@
+1)Find the revenue we got from each sales channel in a given year
+SELECT sales_channel,SUM(amount) AS total_revenue
+FROM clinic_sales
+WHERE EXTRACT(YEAR FROM datetime) = 2021
+GROUP BY sales_channel
+ORDER BY total_revenue DESC;
+
+2)Find top 10 the most valuable customers for a given year
+SELECT cs.uid,c.name,SUM(cs.amount) AS total_spent
+FROM clinic_sales cs
+JOIN customer c ON cs.uid = c.uid
+WHERE EXTRACT(YEAR FROM cs.datetime) = 2021
+GROUP BY cs.uid, c.name
+ORDER BY total_spent DESC
+FETCH FIRST 10 ROWS ONLY; or we can also do by using ranking also
+
+3)Find month wise revenue, expense, profit , status (profitable / not-profitable) for a given year
+  WITH revenue AS (
+    SELECT  EXTRACT(MONTH FROM datetime) AS month,SUM(amount) AS total_revenue
+    FROM clinic_sales
+    WHERE EXTRACT(YEAR FROM datetime) = 2021
+    GROUP BY EXTRACT(MONTH FROM datetime)
+),
+expenses_cte AS (
+    SELECT EXTRACT(MONTH FROM datetime) AS month,SUM(amount) AS total_expense
+    FROM expenses
+    WHERE EXTRACT(YEAR FROM datetime) = 2021
+    GROUP BY EXTRACT(MONTH FROM datetime)
+)
+SELECT 
+    r.month,
+    NVL(r.total_revenue, 0) AS revenue,
+    NVL(e.total_expense, 0) AS expense,
+    NVL(r.total_revenue, 0) - NVL(e.total_expense, 0) AS profit,
+    CASE 
+        WHEN NVL(r.total_revenue, 0) - NVL(e.total_expense, 0) > 0 
+        THEN 'Profitable'
+        ELSE 'Not Profitable'
+    END AS status
+FROM revenue r
+LEFT JOIN expenses_cte e ON r.month = e.month
+ORDER BY r.month;
+
+4)For each city find the most profitable clinic for a given month
+  WITH clinic_profit AS (
+    SELECT 
+        c.city,
+        cs.cid,
+        SUM(cs.amount) - NVL(SUM(e.amount), 0) AS profit
+    FROM clinic_sales cs
+    JOIN clinics c ON cs.cid = c.cid
+    LEFT JOIN expenses e 
+        ON cs.cid = e.cid 
+        AND EXTRACT(MONTH FROM e.datetime) = 9
+        AND EXTRACT(YEAR FROM e.datetime) = 2021
+    WHERE EXTRACT(MONTH FROM cs.datetime) = 9
+      AND EXTRACT(YEAR FROM cs.datetime) = 2021
+    GROUP BY c.city, cs.cid
+),
+ranked AS (
+    SELECT 
+        city,
+        cid,
+        profit,
+        RANK() OVER (PARTITION BY city ORDER BY profit DESC) AS rnk
+    FROM clinic_profit
+)
+SELECT *
+FROM ranked
+WHERE rnk = 1;

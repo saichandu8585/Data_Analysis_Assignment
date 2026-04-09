@@ -1,0 +1,36 @@
+1)For every user in the system, get the user_id and last booked room_no
+
+with assignranks as
+(
+  select user_id,booking_date,row_number() over(partition by user_id order by booking_date desc) as booking_no
+  from bookings
+),
+getuserandroom as
+(
+  select user_id,booking_date
+  from assignranks
+  where booking_no=1;
+)
+select * from getuserandroom;
+
+2)Get booking_id and total billing amount of every booking created in November, 2021
+select b.booking_id,sum(bc.item_quantity*i.item_rate)
+from bookings b join booking_commercials bc
+on b.booking_id=bc.booking_id
+join items i
+on bc.item_id=i.item_id
+where to_char(b.booking_date,'FMMonth')='November' and to_char(b.booking_date,'YYYY')='2021'
+group by booking_id;
+
+3)Get bill_id and bill amount of all the bills raised in October, 2021 having bill amount >1000
+with getbillandamt as
+(
+  select bill_id,sum(bc.item_quantity*i.item_rate) as bill_amount
+  from booking_commercials bc join items i
+  on bc.item_id=i.item_id
+  where to_char(bc.bill_date,'FMMONTH')='OCTOBER' and to_char(bc.bill_date,'YYYY')='2021'
+  group by bill_id
+)
+select bill_id,bill_amount
+from getbillandamt
+where bill_amount>1000;
